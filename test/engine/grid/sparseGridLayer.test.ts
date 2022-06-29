@@ -63,6 +63,5 @@ describe('testing the SparseGridLayer basic functionality', () => {
     expect(l.getElementsAtPosition(new Coordinates(5, 5))).toStrictEqual([]);
   });
 
-
   // TODO: write tests for larger than 1x1 items
 });

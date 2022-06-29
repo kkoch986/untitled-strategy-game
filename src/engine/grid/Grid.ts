@@ -1,6 +1,7 @@
 import GridLayer from './GridLayer';
 import Coordinates from './Coordinates';
 import Path from './Path';
+import Positionable, { CollisionType, ImpedingTile } from './Positionable';
 
 /**
  * Grid provides the basis for managing a map and the things on each tile
@@ -16,88 +17,102 @@ export default class Grid {
     this.layers = [];
   }
 
+  setLayer(z: number, l: GridLayer) {
+    this.layers[z] = l;
+  }
+
+  getAllElementsAtPosition(c: Coordinates): Positionable[] {
+    const ret: Positionable[] = [];
+    return ret.concat(...this.layers.map(l => l.getElementsAtPosition(c)));
+  }
+
   // getPaths returns a list of all possible paths from the given coordinate that
   //   can be reached in up to and including the given range.
   // distance is calculated in cartesian moves only (no diagonal moves)
   getPaths(s: Coordinates, range: number): Path[] {
     // The general approach here will be to keep a list of all paths we have found
-    // with _exactly_ `range` length (unless we cannot complete a path that long).
     // As we do so, keep track of the shortest path we have discovered to each point.
     // While traversing, if you encounter a cell we have already visited, only search
     // from there if it results in a shorter path.
     // If we reach `range` or there are no more options to move, store that path.
     const minimumCosts: number[][] = [];
-    const traverse = (here: Coordinates, basePath: Path): Path[] => {
-      if (!this.isInBounds(here)) {
+    const traverse = (basePath: Path): Path[] => {
+      const head = basePath.head();
+
+      // If we are out of bounds, just stop
+      if (!this.isInBounds(head)) {
         return [];
       }
 
-      // TODO: allow tiles to have variable costs
-      const costOfLeavingHere = 1;
+      // If the cost of the basepath is greater than the range
+      //   don't try traversing anymore. this also shoud only happen on invalid inputs
+      if (basePath.cost > range) {
+        return [];
+      }
 
       // Add this move to the minimumCosts
-      if (!minimumCosts[here.row]) {
-        minimumCosts[here.row] = [];
+      if (!minimumCosts[head.row]) {
+        minimumCosts[head.row] = [];
       }
-      const minCost = minimumCosts[here.row][here.col];
+      const minCost = minimumCosts[head.row][head.col];
       if (minCost === undefined || basePath.cost < minCost) {
-        minimumCosts[here.row][here.col] = basePath.cost;
-      }
-      // TODO: handle things that are bigger than 1x1
-      // TODO: handle moving around terrain objects
-      // TODO: handle jumping over things?
-      if (basePath.cost === range) {
-        return [basePath.withNextHop(here, 0)];
+        minimumCosts[head.row][head.col] = basePath.cost;
       }
 
-      let hasOutOfBoundsCandidate = false;
-      const candidates = [
-        here.left(),
-        here.right(),
-        here.up(),
-        here.down(),
-      ].filter(c => {
-        // When deciding if we should traverse here:
-        //  1. check if its in bounds
-        if (!this.isInBounds(c)) {
-          hasOutOfBoundsCandidate = true;
-          return false;
-        }
-
-        //  2. check if we have traversed it already,
-        //     if so, only proceed if the incremental cost of moving to that space
-        //     is lower than the previously encountered cost
-        if (!minimumCosts[c.row]) {
-          minimumCosts[c.row] = [];
-        }
-        const minCost = minimumCosts[c.row][c.col];
-        if (
-          minCost === undefined ||
-          minCost > basePath.cost + costOfLeavingHere
-        ) {
-          return true;
-        }
-        return false;
-      });
-
-      // If there are no eligible candidates, just return this space.
-      if (candidates.length === 0) {
-        return [basePath.withNextHop(here, 0)];
-      }
-      const ret: Path[] = [];
-      // if any move goes specifically out of bounds, we should make sure to include
-      //        the move to this space as a final move
-      if (hasOutOfBoundsCandidate) {
-        ret.push(basePath.withNextHop(here, 0));
-      }
+      // Generate the list of candidate next steps
+      const candidates = [head.left(), head.right(), head.up(), head.down()];
+      const ret: Path[] = [basePath];
       return ret.concat(
-        ...candidates.map(c =>
-          traverse(c, basePath.withNextHop(here, costOfLeavingHere))
-        )
+        ...candidates.map(c => {
+          // If we are out of bounds, just stop
+          if (!this.isInBounds(c)) {
+            return [];
+          }
+
+          const elementsHere = this.getAllElementsAtPosition(head);
+          console.log(elementsHere);
+
+          // check if this cell is completely blocked by a positionable element
+          // also compute the total cost to move to this position by summing any
+          //   impeding elements
+          let fullyBlocked = false;
+          let costToGoHere = 1;
+          elementsHere.forEach(e => {
+            switch (e.getCollisionType()) {
+              case CollisionType.NO_COLLISION:
+                break;
+              case CollisionType.IMPASSABLE:
+                fullyBlocked = true;
+                return;
+              case CollisionType.IMPEDENCE:
+                costToGoHere += (e as ImpedingTile).getMovementPenalty();
+                return;
+            }
+          });
+
+          if (fullyBlocked) {
+            return [];
+          }
+
+          // dont include paths that have already been explored
+          if (!minimumCosts[c.row]) {
+            minimumCosts[c.row] = [];
+          }
+          const minCost = minimumCosts[c.row][c.col];
+          if (minCost === undefined || basePath.cost + costToGoHere < minCost) {
+            return traverse(basePath.withNextHop(c, costToGoHere));
+          }
+          return [];
+        })
       );
     };
-
-    return traverse(s, new Path()).filter(c => c.cost > 0);
+    return traverse(new Path([s], 0)).filter(p => {
+      // dont return the path with just the starting point on it
+      if (p.length() === 1 && p.cost === 0) {
+        return false;
+      }
+      return true;
+    });
   }
 
   isInBounds(c: Coordinates): boolean {

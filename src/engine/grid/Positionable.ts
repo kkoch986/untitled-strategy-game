@@ -10,7 +10,7 @@ export default interface Positionable {
   getCollisionType(): CollisionType;
 }
 
-export interface ImpedingTile {
+export interface ImpedingTile extends Positionable {
   getMovementPenalty(): number;
 }
 

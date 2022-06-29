@@ -23,6 +23,15 @@ export default class Path {
     );
   }
 
+  head(): Coordinates {
+    // TODO: handle if this is an empty path
+    return this.hops[this.hops.length - 1];
+  }
+
+  length(): number {
+    return this.hops.length;
+  }
+
   compare(b: Path): number {
     const aStr = this.toString();
     const bStr = b.toString();

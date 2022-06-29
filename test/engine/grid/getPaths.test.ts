@@ -117,12 +117,12 @@ describe('testing basic 5x5 grid pathfinding', () => {
     // <3,3> is intentionally off center since at this size,
     //   it can discover an edge route that is correct but shorter than the range
     paths = g.getPaths(new Coordinates(3, 3), 2);
-    // console.log(
-    //   paths
-    //     .map(p => p.toString())
-    //     .join('\n')
-    // );
+    //console.log(paths.map(p => p.toString()).join('\n'));
     expect(paths).toStrictEqual([
+      Path.FromMatrix(1, [
+        [3, 3],
+        [3, 2],
+      ]),
       Path.FromMatrix(2, [
         [3, 3],
         [3, 2],
@@ -152,6 +152,10 @@ describe('testing basic 5x5 grid pathfinding', () => {
         [3, 4],
         [4, 4],
       ]),
+      Path.FromMatrix(1, [
+        [3, 3],
+        [2, 3],
+      ]),
       Path.FromMatrix(2, [
         [3, 3],
         [2, 3],
@@ -163,4 +167,14 @@ describe('testing basic 5x5 grid pathfinding', () => {
       ]),
     ]);
   });
+});
+
+
+describe('testing basic 5x5 grid pathfinding with collision elements', () => {
+  const g = new Grid(5, 5);
+
+  // TODO; Build out some tests where we add impeding and blocking elements to layers on the grid
+
+  paths = g.getPaths(new Coordinates(3, 3), 2);
+  //console.log(paths.map(p => p.toString()).join('\n'));
 });
